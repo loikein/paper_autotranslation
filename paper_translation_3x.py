@@ -1,4 +1,4 @@
-#coding=utf8
+# coding=utf8
 # 注意：程序基于 python 2.7
 # 依赖：
 # requests
@@ -6,9 +6,9 @@
 
 
 from pdfminer.pdfparser import PDFParser
-from pdfminer.pdfparser import PDFDocument
-from pdfminer.pdfparser import PDFPage
-from pdfminer.pdfinterp import PDFTextExtractionNotAllowed
+from pdfminer.pdfdocument import PDFDocument
+from pdfminer.pdfpage import PDFPage
+from pdfminer.pdfdocument import PDFTextExtractionNotAllowed
 from pdfminer.pdfinterp import PDFResourceManager
 from pdfminer.pdfinterp import PDFPageInterpreter
 from pdfminer.pdfdevice import PDFDevice
@@ -60,7 +60,7 @@ class Youdao(object):
     def get_md(self, value):
         '''md5加密'''
         m = hashlib.md5()
-        m.update(value.encode('utf-8','ignore'))
+        m.update(value.encode('utf-8', 'ignore'))
         return m.hexdigest()
 
     def get_salt(self):
@@ -109,9 +109,11 @@ class Youdao(object):
             try:
                 # 发送请求
                 if self.proxies == None:
-                    html = requests.post(self.url, data=data, headers=headers).text
+                    html = requests.post(
+                        self.url, data=data, headers=headers).text
                 else:
-                    html = requests.post(self.url, data=data, proxies=self.proxies, headers=headers, timeout=self.timeout).text
+                    html = requests.post(
+                        self.url, data=data, proxies=self.proxies, headers=headers, timeout=self.timeout).text
 
                 # 获取翻译结果
                 infos = json.loads(html)
@@ -120,59 +122,62 @@ class Youdao(object):
                     for p in infos['translateResult'][0]:
                         result += p['tgt']
                 else:
-                    raise Exception ('No translateResult')
+                    raise Exception('No translateResult')
 
                 break
             except Exception as e:
                 if log_level > 1:
-                    print (e)
-                    print ('Retry!')
+                    print(e)
+                    print('Retry!')
                 ip = ProxyIP().get()
-                self.proxies = {'http':'%s:%d'%(ip[0],ip[1])}
+                self.proxies = {'http': '%s:%d' % (ip[0], ip[1])}
         return result
+
 
 def translate_per_paragraph(paragraph_no, paragraph):
     '''翻译每个段落'''
     trans_paragraph = Youdao(paragraph).get_result()
-    print ('[Paragraph %d translate successfully.]'%(paragraph_no+1))
+    print('[Paragraph %d translate successfully.]' % (paragraph_no+1))
     return trans_paragraph
+
 
 def Pdf2Txt(path):
     # 打开文件
     fp = open(path, 'rb')
-    #来创建一个pdf文档分析器
+    # 来创建一个pdf文档分析器
     parser = PDFParser(fp)
-    #创建一个PDF文档对象存储文档结构
-    document = PDFDocument()
+    # 创建一个PDF文档对象存储文档结构
+    document = PDFDocument(parser)
     parser.set_document(document)
-    document.set_parser(parser)
-    document.initialize()
+    # document.set_parser(parser)
+    # parser.set_document(document)
+    # document.initialize()
     # 检查文件是否允许文本提取
     if not document.is_extractable:
         raise PDFTextExtractionNotAllowed
     else:
         # 创建一个PDF资源管理器对象来存储共赏资源
-        rsrcmgr=PDFResourceManager()
+        rsrcmgr = PDFResourceManager()
         # 设定参数进行分析
-        laparams=LAParams()
+        laparams = LAParams()
         # 创建一个PDF设备对象
         # device=PDFDevice(rsrcmgr)
-        device=PDFPageAggregator(rsrcmgr,laparams=laparams)
+        device = PDFPageAggregator(rsrcmgr, laparams=laparams)
         # 创建一个PDF解释器对象
-        interpreter=PDFPageInterpreter(rsrcmgr,device)
+        interpreter = PDFPageInterpreter(rsrcmgr, device)
         # 处理每一页
         paragraph = ''
         paragraph_list = []
-        print ('[Start get all pdf pages content...]')
-        for page_no, page in enumerate(document.get_pages()):
-            print ('[Get content of page %d ...]'%(page_no))
+        print('[Start get all pdf pages content...]')
+        for page_no, page in enumerate(PDFPage.create_pages(document)):
+            print('[Get content of page %d ...]' % (page_no))
             interpreter.process_page(page)
             # 接受该页面的LTPage对象
-            layout=device.get_result()
+            layout = device.get_result()
             layout_size = len(layout)
-            for i,x in enumerate(layout):
+            for i, x in enumerate(layout):
                 try:
-                    if(isinstance(x,LTTextBox)):
+                    if(isinstance(x, LTTextBox)):
                         for xx in x:
                             content = xx.get_text().strip()
                             if paragraph != '' and paragraph[-1] == '-':
@@ -194,91 +199,90 @@ def Pdf2Txt(path):
                         paragraph = ''
                 except Exception as e:
                     if log_level > 1:
-                        print (str(e))
-                        print ("Failed!")
-        print ('')
+                        print(str(e))
+                        print("Failed!")
+        print('')
     fp.close()
     return paragraph_list
 
+
 def translate(paragraph_list, Save_path):
     # 开始翻译
-    print ('[Start translate all pdf paragraph...]')
+    print('[Start translate all pdf paragraph...]')
     paragraph_len = len(paragraph_list)
     print(paragraph_len)
     # 清除空白元素
-    paragraph_list = filter(lambda x:False if x.strip == '' else True, paragraph_list)
+    paragraph_list = filter(lambda x: False if x.strip ==
+                            '' else True, paragraph_list)
     paragraph_list_bak = copy.deepcopy(paragraph_list)
-    
+
     # 创建进程池
-    pool = Pool(processes = MAX_PROCESS_NUM)
+    pool = Pool(processes=MAX_PROCESS_NUM)
 
     # 把所有抓取任务放到进程池中
-    print ('[Push all translate process in pool...]')
+    print('[Push all translate process in pool...]')
     start_time = time.clock()
     results = []
     for i, paragraph in enumerate(paragraph_list):
         # print 'Push process %d/%d in pool...'%(i+1, paragraph_len)
-        results.append( pool.apply_async(translate_per_paragraph,(i, paragraph) ) )
+        results.append(pool.apply_async(
+            translate_per_paragraph, (i, paragraph)))
     # print ''
 
     # 关闭进程池，使其不再接受请求
     pool.close()
-    
+
     # 等待所有进程请求执行完毕
-    print ('[Start multiprocessing translate...]')
+    print('[Start multiprocessing translate...]')
     pool.join()
 
     # 评估翻译速度
     end_time = time.clock()
-    print ('[All translation complete.]')
+    print('[All translation complete.]')
     total_time = float(end_time - start_time)
-    print ('[Total time : %f s]'%(total_time))
-    print ('[Average time of per process : %f s]'%(total_time/paragraph_len))
-    print ('')
+    print('[Total time : %f s]' % (total_time))
+    print('[Average time of per process : %f s]' % (total_time/paragraph_len))
+    print('')
 
     # 获取翻译结果
-    print ('[Get translation result...]')
+    print('[Get translation result...]')
     trans_paragraph_list = []
     for result in results:
-        trans_paragraph_list.append( result.get() )
+        trans_paragraph_list.append(result.get())
 
     # 创建空文件
-    #with open('%s'%(Save_path),'w') as f:
+    # with open('%s'%(Save_path),'w') as f:
     #    pass
-    f = open('%s'%(Save_path),'w', encoding='utf8')
+    f = open('%s' % (Save_path), 'w', encoding='utf8')
     f.close()
     # 写入文件
-    print ('[Writing all paragraph...]')
-    #with open('%s'%(Save_path),'a') as f:
-    f = open('%s'%(Save_path),'a', encoding='utf8')
+    print('[Writing all paragraph...]')
+    # with open('%s'%(Save_path),'a') as f:
+    f = open('%s' % (Save_path), 'a', encoding='utf8')
     for i, paragraph in enumerate(paragraph_list_bak):
-        print ('[Writing paragraph %d/%d...]'%(i+1, paragraph_len))
+        print('[Writing paragraph %d/%d...]' % (i+1, paragraph_len))
         print(paragraph)
 
         # 写入英文段落
-        f.write(paragraph.encode('utf8','ignore').decode('utf8','ignore'))
+        f.write(paragraph.encode('utf8', 'ignore').decode('utf8', 'ignore'))
         f.write('\n\n')
 
         # 写入翻译段落
         if log_level > 0:
-            print (paragraph)
+            print(paragraph)
         trans_paragraph = trans_paragraph_list[i]
 
         if log_level > 0:
-            print (trans_paragraph)
-            print ('')
+            print(trans_paragraph)
+            print('')
         f.write(trans_paragraph)
         f.write('\n\n')
-    print ('[The translated document has been written to local.]')
+    print('[The translated document has been written to local.]')
     f.close()
-
-
-
 
 
 if __name__ == '__main__':
     filename = '2017_ICSA_Bidirectional Mapping between Architecture Model and Code for Synchronization.pdf'
     paragraph_list = Pdf2Txt(filename)
     print(paragraph_list)
-    translate(paragraph_list, '%s.txt'%filename)
-
+    translate(paragraph_list, '%s.txt' % filename)
